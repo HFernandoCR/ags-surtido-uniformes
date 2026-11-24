@@ -9,8 +9,8 @@ import sys
 LOTES = [
     ("Camisa menudeo", 2700, 1800),
     ("Camisa mayoreo", 3600, 1200),
-    ("Pantalon menudeo", 2800, 1800),
-    ("Pantalon mayoreo", 2800, 1000),
+    ("Pantalón menudeo", 2800, 1800),
+    ("Pantalón mayoreo", 2800, 1000),
     ("Sudadera menudeo", 900, 600),
     ("Sudadera mayoreo", 1800, 700),
 ]
