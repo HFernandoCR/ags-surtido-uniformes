@@ -1,5 +1,6 @@
 import random
 import sys
+import matplotlib.pyplot as plt
 
 # 1. DATOS DEL PROBLEMA Y PARÁMETROS
 
@@ -99,6 +100,7 @@ def eliminar(union):
 def ags(semilla=None):
     random.seed(semilla)
     poblacion = crear_poblacion()
+    historial = []
 
     for g in range(1, GEN + 1):
         # 1. Emparejar, cruzar y mutar a los hijos
@@ -115,6 +117,7 @@ def ags(semilla=None):
         # 3. Renumerar: la posición en la lista es el nuevo número
         aptitudes = [aptitud(x) for x in poblacion]
         promedio = sum(aptitudes) / N
+        historial.append((g, aptitudes[0], promedio))
         print(f"Gen {g:3d} | mejor = {aptitudes[0]:5d} ({a_texto(poblacion[0])}) | promedio = {promedio:7.1f}")
 
     # Resultado
@@ -126,6 +129,28 @@ def ags(semilla=None):
             print("  -", LOTES[j][0])
     print(f"Costo = {costo}  |  Ganancia = {ganancia}  |  Aptitud = {aptitud(mejor)}")
     print(f"Sobra del presupuesto: {P - costo}")
+
+    return historial
+
+def graficar(historial, archivo="convergencia.png"):
+    """Guarda la gráfica de mejor aptitud y promedio por generación."""
+    import matplotlib.pyplot as plt
+
+    generaciones = [h[0] for h in historial]
+    mejores = [h[1] for h in historial]
+    promedios = [h[2] for h in historial]
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(generaciones, mejores, marker="o", label="Mejor aptitud")
+    plt.plot(generaciones, promedios, marker="o", label="Promedio")
+    plt.xlabel("Generación")
+    plt.ylabel("Aptitud")
+    plt.title(f"Convergencia del AGS (N = {N}, {GEN} generaciones)")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(archivo, dpi=150)
+    print(f"\nGráfica guardada en {archivo}")
 
 
 
@@ -230,5 +255,8 @@ def pruebas():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "pruebas":
         pruebas()
+    elif len(sys.argv) > 1 and sys.argv[1] == "grafica":
+        historial = ags(semilla=1)
+        graficar(historial)
     else:
         ags(semilla=1)
