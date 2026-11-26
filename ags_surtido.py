@@ -164,6 +164,18 @@ def voraz():
     costo, ganancia = costo_ganancia(x)
     return x, ganancia
 
+def busqueda_aleatoria(evaluaciones, semilla=None):
+    """Prueba cromosomas al azar y se queda con el mejor que cabe en P."""
+    random.seed(semilla)
+    mejor = None
+    mejor_ganancia = -1
+    for i in range(evaluaciones):
+        x = [random.randint(0,1) for j in range(L)]
+        costo, ganancia = costo_ganancia(x)
+        if costo <= P and ganancia > mejor_ganancia:
+            mejor = x
+            mejor_ganancia = ganancia
+    return mejor, mejor_ganancia
 
 
 # 3. CICLO PRINCIPAL
@@ -347,5 +359,8 @@ if __name__ == "__main__":
         print("Óptimo exacto:", a_texto(x), "| ganancia =", g)
         xv, gv = voraz()
         print("Voraz:        ", a_texto(xv), "| ganancia =", gv, f"| {100 * gv / g:.1f} % del óptimo")
+        evaluaciones = N + GEN * N
+        xa, ga = busqueda_aleatoria(evaluaciones, semilla=1)
+        print("Aleatoria:    ", a_texto(xa), "| ganancia =", ga, f"| {100 * ga / g:.1f} % del óptimo", f"({evaluaciones} evaluaciones)")
     else:
         ags(semilla=1)
