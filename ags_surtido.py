@@ -13,6 +13,7 @@ Uso:
 import random
 import sys
 import itertools
+import statistics
 
 
 # 1. DATOS DEL PROBLEMA Y PARÁMETROS
@@ -180,7 +181,7 @@ def busqueda_aleatoria(evaluaciones, semilla=None):
 
 # 3. CICLO PRINCIPAL
 
-def ags(semilla=None):
+def ags(semilla=None, mostrar=True):
     if N % 2 != 0:
         sys.exit("Error: N debe ser par para formar parejas.")
     random.seed(semilla)
@@ -202,8 +203,12 @@ def ags(semilla=None):
         # 3. Renumerar: la posición en la lista es el nuevo número
         aptitudes = [aptitud(x) for x in poblacion]
         promedio = sum(aptitudes) / N
-        historial.append((g, aptitudes[0], promedio))
-        print(f"Gen {g:3d} | mejor = {aptitudes[0]:5d} ({a_texto(poblacion[0])}) | promedio = {promedio:7.1f}")
+        historial.append((g, aptitudes[0], promedio, poblacion[0]))
+        if mostrar:
+            print(f"Gen {g:3d} | mejor = {aptitudes[0]:5d} ({a_texto(poblacion[0])}) | promedio = {promedio:7.1f}")
+
+    if not mostrar:
+        return historial
 
     # Resultado
     mejor = poblacion[0]
@@ -356,11 +361,30 @@ if __name__ == "__main__":
     elif len(sys.argv) > 1 and sys.argv[1] == "validacion":
         usar_datos_tienda()
         x, g = optimo_exacto()
-        print("Óptimo exacto:", a_texto(x), "| ganancia =", g)
         xv, gv = voraz()
-        print("Voraz:        ", a_texto(xv), "| ganancia =", gv, f"| {100 * gv / g:.1f} % del óptimo")
         evaluaciones = N + GEN * N
-        xa, ga = busqueda_aleatoria(evaluaciones, semilla=1)
-        print("Aleatoria:    ", a_texto(xa), "| ganancia =", ga, f"| {100 * ga / g:.1f} % del óptimo", f"({evaluaciones} evaluaciones)")
+        EJECUCIONES = 30
+        res_ags = []
+        res_azar = []
+        for semilla in range(EJECUCIONES):
+            historial = ags(semilla=semilla, mostrar=False)
+            mejor = historial[-1][3]
+            costo, ganancia = costo_ganancia(mejor)
+            if costo <= P:
+                res_ags.append(ganancia)
+            else:
+                res_ags.append(0)
+            xa, ga = busqueda_aleatoria(evaluaciones, semilla=semilla)
+            res_azar.append(ga)
+
+        print(f"Presupuesto: {P} | óptimo exacto: {a_texto(x)} con {g}")
+        print(f"{EJECUCIONES} ejecuciones, semillas 0 a {EJECUCIONES - 1}, {evaluaciones} evaluaciones cada una\n")
+        print(f"{'Método':<12}{'Media':>9}{'Desv.':>8}{'Peor':>7}{'% óptimo':>10}{'Óptimos':>9}")
+        print(f"{'Voraz':<12}{gv:>9.1f}{0:>8.1f}{gv:>7}{100 * gv / g:>9.1f}%{(EJECUCIONES if gv == g else 0):>6}/{EJECUCIONES}")
+        for nombre, res in [("AGS", res_ags), ("Aleatoria", res_azar)]:
+            media = statistics.mean(res)
+            desv = statistics.pstdev(res)
+            exitos = res.count(g)
+            print(f"{nombre:<12}{media:>9.1f}{desv:>8.1f}{min(res):>7}{100 * media / g:>9.1f}%{exitos:>6}/{EJECUCIONES}")
     else:
         ags(semilla=1)
