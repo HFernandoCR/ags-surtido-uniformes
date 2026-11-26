@@ -152,6 +152,18 @@ def optimo_exacto():
             mejor_ganancia = ganancia
     return mejor, mejor_ganancia
 
+def voraz():
+    """Compra primero los lotes con mayor ganancia por peso invertido, mientras alcance P."""
+    orden = sorted(range(L), key=lambda j: LOTES[j][2] / LOTES[j][1], reverse=True)
+    x = [0] * L
+    gastado = 0
+    for j in orden:
+        if gastado + LOTES[j][1] <= P:
+            x[j] = 1
+            gastado = gastado + LOTES[j][1]
+    costo, ganancia = costo_ganancia(x)
+    return x, ganancia
+
 
 
 # 3. CICLO PRINCIPAL
@@ -333,5 +345,7 @@ if __name__ == "__main__":
         usar_datos_tienda()
         x, g = optimo_exacto()
         print("Óptimo exacto:", a_texto(x), "| ganancia =", g)
+        xv, gv = voraz()
+        print("Voraz:        ", a_texto(xv), "| ganancia =", gv, f"| {100 * gv / g:.1f} % del óptimo")
     else:
         ags(semilla=1)
