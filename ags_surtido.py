@@ -1,28 +1,77 @@
+"""
+Algoritmo Genético Simple (AGS)
+Apoyo a la decisión de compra de una tienda de uniformes (problema de la mochila 0-1):
+qué lotes comprar al proveedor con el presupuesto de cada surtido.
+
+Uso:
+    python3 ags_surtido.py           -> ejecuta el AGS con el ejemplo de 3 prendas
+    python3 ags_surtido.py pruebas   -> ejecuta las pruebas de cada fase
+    python3 ags_surtido.py grafica   -> ejecuta el ejemplo y guarda su gráfica
+    python3 ags_surtido.py tienda    -> ejecuta el AGS con los datos del comerciante
+    python3 ags_surtido.py validacion -> compara el AGS con otros métodos (datos del comerciante)
+    python3 ags_surtido.py barrido   -> compara los métodos en presupuestos de $1,500 a $4,000 y guarda la gráfica
+"""
 import random
 import sys
+import itertools
+import statistics
+
 
 # 1. DATOS DEL PROBLEMA Y PARÁMETROS
 
-# Datos del problema: un lote por bit 
+# Toda la mercancía se compra al proveedor a precio de mayoreo (costo C).
+# Cada prenda tiene dos lotes según su canal de venta:
+#   venta al público (por pieza) o pedido de mayoreo (escuelas, revendedores).
 # (nombre, costo C, ganancia G)
 
+# Ejemplo de prueba: 3 prendas (el de la traza a mano)
 LOTES = [
-    ("Camisa menudeo", 2700, 1800),
-    ("Camisa mayoreo", 3600, 1200),
-    ("Pantalón menudeo", 2800, 1800),
-    ("Pantalón mayoreo", 2800, 1000),
-    ("Sudadera menudeo", 900, 600),
-    ("Sudadera mayoreo", 1800, 700),
+    ("Camisa (venta al público)", 2700, 1800),
+    ("Camisa (pedido de mayoreo)", 3600, 1200),
+    ("Pantalón (venta al público)", 2800, 1800),
+    ("Pantalón (pedido de mayoreo)", 2800, 1000),
+    ("Sudadera (venta al público)", 900, 600),
+    ("Sudadera (pedido de mayoreo)", 1800, 700),
 ]
 
 P = 7000 # presupuesto
 LAMBDA = 1 # factor de penalización
 
 # Parámetros
-N = 4          # tamaño población  
-GEN = 10       # número de generaciones  
+N = 4          # tamaño población (par)
+GEN = 10       # número de generaciones
 L = len(LOTES) # longitud del cromosoma
 PM = 1/L       # probabilidad de mutación por bit
+
+# Datos del comerciante: lotes de 10 piezas, punto medio de cada rango
+LOTES_TIENDA = [
+    ("Suéter (venta al público)", 1650, 1200),
+    ("Suéter (pedido de mayoreo)", 1650, 850),
+    ("Camisa (venta al público)", 500, 650),
+    ("Camisa (pedido de mayoreo)", 500, 350),
+    ("Falda tipo 1 (venta al público)", 2000, 1050),
+    ("Falda tipo 1 (pedido de mayoreo)", 2000, 800),
+    ("Falda tipo 2 (venta al público)", 1700, 900),
+    ("Falda tipo 2 (pedido de mayoreo)", 1700, 650),
+    ("Falda tipo 3 (venta al público)", 1350, 700),
+    ("Falda tipo 3 (pedido de mayoreo)", 1350, 250),
+]
+P_TIENDA = 4000      # presupuesto por surtido
+LAMBDA_TIENDA = 100  # por encima del valor crítico (0.571); 100 deja margen
+N_TIENDA = 20
+GEN_TIENDA = 50
+
+
+def usar_datos_tienda():
+    """Cambia los datos y parámetros globales por los del comerciante."""
+    global LOTES, P, LAMBDA, N, GEN, L, PM
+    LOTES = LOTES_TIENDA
+    P = P_TIENDA
+    LAMBDA = LAMBDA_TIENDA
+    N = N_TIENDA
+    GEN = GEN_TIENDA
+    L = len(LOTES)
+    PM = 1/L
 
 
 
@@ -93,12 +142,52 @@ def eliminar(union):
     ordenada = sorted(union, key=aptitud, reverse=True)
     return ordenada[:N]
 
+def optimo_exacto():
+    """Revisa todas las combinaciones y regresa la mejor que cabe en P."""
+    mejor = None
+    mejor_ganancia = -1
+    for combinacion in itertools.product([0,1], repeat=L):
+        x = list(combinacion)
+        costo, ganancia = costo_ganancia(x)
+        if costo <= P and ganancia > mejor_ganancia:
+            mejor = x
+            mejor_ganancia = ganancia
+    return mejor, mejor_ganancia
+
+def voraz():
+    """Compra primero los lotes con mayor ganancia por peso invertido, mientras alcance P."""
+    orden = sorted(range(L), key=lambda j: LOTES[j][2] / LOTES[j][1], reverse=True)
+    x = [0] * L
+    gastado = 0
+    for j in orden:
+        if gastado + LOTES[j][1] <= P:
+            x[j] = 1
+            gastado = gastado + LOTES[j][1]
+    costo, ganancia = costo_ganancia(x)
+    return x, ganancia
+
+def busqueda_aleatoria(evaluaciones, semilla=None):
+    """Prueba cromosomas al azar y se queda con el mejor que cabe en P."""
+    random.seed(semilla)
+    mejor = None
+    mejor_ganancia = -1
+    for i in range(evaluaciones):
+        x = [random.randint(0,1) for j in range(L)]
+        costo, ganancia = costo_ganancia(x)
+        if costo <= P and ganancia > mejor_ganancia:
+            mejor = x
+            mejor_ganancia = ganancia
+    return mejor, mejor_ganancia
 
 
 # 3. CICLO PRINCIPAL
-def ags(semilla=None):
+
+def ags(semilla=None, mostrar=True):
+    if N % 2 != 0:
+        sys.exit("Error: N debe ser par para formar parejas.")
     random.seed(semilla)
     poblacion = crear_poblacion()
+    historial = []
 
     for g in range(1, GEN + 1):
         # 1. Emparejar, cruzar y mutar a los hijos
@@ -115,7 +204,12 @@ def ags(semilla=None):
         # 3. Renumerar: la posición en la lista es el nuevo número
         aptitudes = [aptitud(x) for x in poblacion]
         promedio = sum(aptitudes) / N
-        print(f"Gen {g:3d} | mejor = {aptitudes[0]:5d} ({a_texto(poblacion[0])}) | promedio = {promedio:7.1f}")
+        historial.append((g, aptitudes[0], promedio, poblacion[0]))
+        if mostrar:
+            print(f"Gen {g:3d} | mejor = {aptitudes[0]:5d} ({a_texto(poblacion[0])}) | promedio = {promedio:7.1f}")
+
+    if not mostrar:
+        return historial
 
     # Resultado
     mejor = poblacion[0]
@@ -127,10 +221,88 @@ def ags(semilla=None):
     print(f"Costo = {costo}  |  Ganancia = {ganancia}  |  Aptitud = {aptitud(mejor)}")
     print(f"Sobra del presupuesto: {P - costo}")
 
+    return historial
+
+def graficar(historial, archivo="convergencia.png"):
+    """Guarda la gráfica de mejor aptitud y promedio por generación."""
+    import matplotlib.pyplot as plt
+
+    generaciones = [h[0] for h in historial]
+    mejores = [h[1] for h in historial]
+    promedios = [h[2] for h in historial]
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(generaciones, mejores, marker="o", label="Mejor aptitud")
+    plt.plot(generaciones, promedios, marker="o", label="Promedio")
+    plt.xlabel("Generación")
+    plt.ylabel("Aptitud")
+    plt.title(f"Convergencia del AGS (N = {N}, {GEN} generaciones)")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    if min(promedios) < 0:
+        plt.ylim(0, max(mejores) * 1.15)
+        plt.figtext(0.5, 0.01,
+                "Promedios negativos de las primeras generaciones fuera de escala (penalización por exceder el presupuesto)",
+                ha="center", fontsize=8)
+    plt.savefig(archivo, dpi=150)
+    print(f"\nGráfica guardada en {archivo}")
+
+def barrido(p_min=1500, p_max=4000, paso=50, ejecuciones=30):
+    """Compara voraz, AGS y búsqueda aleatoria en cada presupuesto del rango."""
+    global P
+    evaluaciones = N + GEN * N
+    filas = []
+    for presupuesto in range(p_min, p_max + 1, paso):
+        P = presupuesto
+        x, g = optimo_exacto()
+        xv, gv = voraz()
+        res_ags = []
+        res_azar = []
+        for semilla in range(ejecuciones):
+            historial = ags(semilla=semilla, mostrar=False)
+            costo, ganancia = costo_ganancia(historial[-1][3])
+            if costo <= P:
+                res_ags.append(ganancia)
+            else:
+                res_ags.append(0)
+            xa, ga = busqueda_aleatoria(evaluaciones, semilla=semilla)
+            res_azar.append(ga)
+        filas.append({
+            "presupuesto": presupuesto,
+            "optimo": g,
+            "voraz": 100 * gv / g,
+            "ags": 100 * statistics.mean(res_ags) / g,
+            "azar": 100 * statistics.mean(res_azar) / g,
+            "exitos_ags": res_ags.count(g),
+            "exitos_azar": res_azar.count(g),
+        })
+    return filas
+
+def graficar_barrido(filas, archivo="comparacion_presupuestos.png"):
+    """Guarda la gráfica de % del óptimo por presupuesto para los tres métodos."""
+    import matplotlib.pyplot as plt
+
+    presupuestos = [f["presupuesto"] for f in filas]
+    plt.figure(figsize=(9, 5))
+    plt.plot(presupuestos, [f["ags"] for f in filas], marker="o", markersize=3, linewidth=2, label="AGS (promedio de 30 ejecuciones)")
+    plt.plot(presupuestos, [f["voraz"] for f in filas], marker="o", markersize=3, color="gray", label="Voraz")
+    plt.plot(presupuestos, [f["azar"] for f in filas], linestyle="--", color="silver", label="Búsqueda aleatoria (mismas evaluaciones)")
+    plt.axhline(95, color="black", linestyle=":", linewidth=1, label="Supuesto 1: 95 % del óptimo")
+    plt.xlabel("Presupuesto por surtido ($)")
+    plt.ylabel("% del óptimo")
+    plt.title("Ganancia de cada método como % del óptimo exacto")
+    plt.ylim(70, 101)
+    plt.grid(True, alpha=0.3)
+    plt.legend(loc="lower right")
+    plt.tight_layout()
+    plt.savefig(archivo, dpi=150)
+    print(f"\nGráfica guardada en {archivo}")
+
 
 
 # 4. PRUEBAS DE CADA FASE
-# Se ejecutan con: python3 ags_surtido.py prueba
+# Se ejecutan con: python3 ags_surtido.py pruebas
 
 def prueba_1_datos():
     print("Lotes:", L, "| pm =", round(PM,3))
@@ -225,10 +397,60 @@ def pruebas():
         print()
 
 
+
 # 5. EJECUCIÓN
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "pruebas":
         pruebas()
+    elif len(sys.argv) > 1 and sys.argv[1] == "grafica":
+        historial = ags(semilla=1)
+        graficar(historial)
+    elif len(sys.argv) > 1 and sys.argv[1] == "tienda":
+        usar_datos_tienda()
+        historial = ags(semilla=1)
+        graficar(historial, "convergencia_tienda.png")
+    elif len(sys.argv) > 1 and sys.argv[1] == "validacion":
+        usar_datos_tienda()
+        x, g = optimo_exacto()
+        xv, gv = voraz()
+        evaluaciones = N + GEN * N
+        EJECUCIONES = 30
+        res_ags = []
+        res_azar = []
+        for semilla in range(EJECUCIONES):
+            historial = ags(semilla=semilla, mostrar=False)
+            mejor = historial[-1][3]
+            costo, ganancia = costo_ganancia(mejor)
+            if costo <= P:
+                res_ags.append(ganancia)
+            else:
+                res_ags.append(0)
+            xa, ga = busqueda_aleatoria(evaluaciones, semilla=semilla)
+            res_azar.append(ga)
+
+        print(f"Presupuesto: {P} | óptimo exacto: {a_texto(x)} con {g}")
+        print(f"{EJECUCIONES} ejecuciones, semillas 0 a {EJECUCIONES - 1}, {evaluaciones} evaluaciones cada una\n")
+        print(f"{'Método':<12}{'Media':>9}{'Desv.':>8}{'Peor':>7}{'% óptimo':>10}{'Óptimos':>9}")
+        print(f"{'Voraz':<12}{gv:>9.1f}{0:>8.1f}{gv:>7}{100 * gv / g:>9.1f}%{(EJECUCIONES if gv == g else 0):>6}/{EJECUCIONES}")
+        for nombre, res in [("AGS", res_ags), ("Aleatoria", res_azar)]:
+            media = statistics.mean(res)
+            desv = statistics.pstdev(res)
+            exitos = res.count(g)
+            print(f"{nombre:<12}{media:>9.1f}{desv:>8.1f}{min(res):>7}{100 * media / g:>9.1f}%{exitos:>6}/{EJECUCIONES}")
+    elif len(sys.argv) > 1 and sys.argv[1] == "barrido":
+        usar_datos_tienda()
+        EJECUCIONES = 30
+        filas = barrido(ejecuciones=EJECUCIONES)
+        print(f"{'Presupuesto':>11}{'Óptimo':>8}{'Voraz %':>9}{'AGS %':>8}{'Aleat. %':>10}{'AGS ópt.':>10}")
+        for f in filas:
+            print(f"{f['presupuesto']:>11}{f['optimo']:>8}{f['voraz']:>9.1f}{f['ags']:>8.1f}{f['azar']:>10.1f}{f['exitos_ags']:>7}/{EJECUCIONES}")
+        total = len(filas) * EJECUCIONES
+        voraz_ok = sum(1 for f in filas if f["voraz"] == 100)
+        print(f"\nPresupuestos: {len(filas)} (de {filas[0]['presupuesto']} a {filas[-1]['presupuesto']})")
+        print(f"Voraz:     llega al óptimo en {voraz_ok} de {len(filas)} presupuestos | promedio {statistics.mean(f['voraz'] for f in filas):.1f} % | peor {min(f['voraz'] for f in filas):.1f} %")
+        print(f"AGS:       llega al óptimo en {100 * sum(f['exitos_ags'] for f in filas) / total:.1f} % de {total} ejecuciones | promedio {statistics.mean(f['ags'] for f in filas):.1f} % | peor promedio {min(f['ags'] for f in filas):.1f} %")
+        print(f"Aleatoria: llega al óptimo en {100 * sum(f['exitos_azar'] for f in filas) / total:.1f} % de {total} ejecuciones | promedio {statistics.mean(f['azar'] for f in filas):.1f} % | peor promedio {min(f['azar'] for f in filas):.1f} %")
+        graficar_barrido(filas)
     else:
         ags(semilla=1)
