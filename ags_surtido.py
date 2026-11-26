@@ -9,6 +9,7 @@ Uso:
     python3 ags_surtido.py grafica   -> ejecuta el ejemplo y guarda su gráfica
     python3 ags_surtido.py tienda    -> ejecuta el AGS con los datos del comerciante
     python3 ags_surtido.py validacion -> compara el AGS con otros métodos (datos del comerciante)
+    python3 ags_surtido.py barrido   -> compara los métodos en presupuestos de $1,500 a $4,000 y guarda la gráfica
 """
 import random
 import sys
@@ -247,6 +248,57 @@ def graficar(historial, archivo="convergencia.png"):
     plt.savefig(archivo, dpi=150)
     print(f"\nGráfica guardada en {archivo}")
 
+def barrido(p_min=1500, p_max=4000, paso=50, ejecuciones=30):
+    """Compara voraz, AGS y búsqueda aleatoria en cada presupuesto del rango."""
+    global P
+    evaluaciones = N + GEN * N
+    filas = []
+    for presupuesto in range(p_min, p_max + 1, paso):
+        P = presupuesto
+        x, g = optimo_exacto()
+        xv, gv = voraz()
+        res_ags = []
+        res_azar = []
+        for semilla in range(ejecuciones):
+            historial = ags(semilla=semilla, mostrar=False)
+            costo, ganancia = costo_ganancia(historial[-1][3])
+            if costo <= P:
+                res_ags.append(ganancia)
+            else:
+                res_ags.append(0)
+            xa, ga = busqueda_aleatoria(evaluaciones, semilla=semilla)
+            res_azar.append(ga)
+        filas.append({
+            "presupuesto": presupuesto,
+            "optimo": g,
+            "voraz": 100 * gv / g,
+            "ags": 100 * statistics.mean(res_ags) / g,
+            "azar": 100 * statistics.mean(res_azar) / g,
+            "exitos_ags": res_ags.count(g),
+            "exitos_azar": res_azar.count(g),
+        })
+    return filas
+
+def graficar_barrido(filas, archivo="comparacion_presupuestos.png"):
+    """Guarda la gráfica de % del óptimo por presupuesto para los tres métodos."""
+    import matplotlib.pyplot as plt
+
+    presupuestos = [f["presupuesto"] for f in filas]
+    plt.figure(figsize=(9, 5))
+    plt.plot(presupuestos, [f["ags"] for f in filas], marker="o", markersize=3, linewidth=2, label="AGS (promedio de 30 ejecuciones)")
+    plt.plot(presupuestos, [f["voraz"] for f in filas], marker="o", markersize=3, color="gray", label="Voraz")
+    plt.plot(presupuestos, [f["azar"] for f in filas], linestyle="--", color="silver", label="Búsqueda aleatoria (mismas evaluaciones)")
+    plt.axhline(95, color="black", linestyle=":", linewidth=1, label="Supuesto 1: 95 % del óptimo")
+    plt.xlabel("Presupuesto por surtido ($)")
+    plt.ylabel("% del óptimo")
+    plt.title("Ganancia de cada método como % del óptimo exacto")
+    plt.ylim(70, 101)
+    plt.grid(True, alpha=0.3)
+    plt.legend(loc="lower right")
+    plt.tight_layout()
+    plt.savefig(archivo, dpi=150)
+    print(f"\nGráfica guardada en {archivo}")
+
 
 
 # 4. PRUEBAS DE CADA FASE
@@ -386,5 +438,19 @@ if __name__ == "__main__":
             desv = statistics.pstdev(res)
             exitos = res.count(g)
             print(f"{nombre:<12}{media:>9.1f}{desv:>8.1f}{min(res):>7}{100 * media / g:>9.1f}%{exitos:>6}/{EJECUCIONES}")
+    elif len(sys.argv) > 1 and sys.argv[1] == "barrido":
+        usar_datos_tienda()
+        EJECUCIONES = 30
+        filas = barrido(ejecuciones=EJECUCIONES)
+        print(f"{'Presupuesto':>11}{'Óptimo':>8}{'Voraz %':>9}{'AGS %':>8}{'Aleat. %':>10}{'AGS ópt.':>10}")
+        for f in filas:
+            print(f"{f['presupuesto']:>11}{f['optimo']:>8}{f['voraz']:>9.1f}{f['ags']:>8.1f}{f['azar']:>10.1f}{f['exitos_ags']:>7}/{EJECUCIONES}")
+        total = len(filas) * EJECUCIONES
+        voraz_ok = sum(1 for f in filas if f["voraz"] == 100)
+        print(f"\nPresupuestos: {len(filas)} (de {filas[0]['presupuesto']} a {filas[-1]['presupuesto']})")
+        print(f"Voraz:     llega al óptimo en {voraz_ok} de {len(filas)} presupuestos | promedio {statistics.mean(f['voraz'] for f in filas):.1f} % | peor {min(f['voraz'] for f in filas):.1f} %")
+        print(f"AGS:       llega al óptimo en {100 * sum(f['exitos_ags'] for f in filas) / total:.1f} % de {total} ejecuciones | promedio {statistics.mean(f['ags'] for f in filas):.1f} % | peor promedio {min(f['ags'] for f in filas):.1f} %")
+        print(f"Aleatoria: llega al óptimo en {100 * sum(f['exitos_azar'] for f in filas) / total:.1f} % de {total} ejecuciones | promedio {statistics.mean(f['azar'] for f in filas):.1f} % | peor promedio {min(f['azar'] for f in filas):.1f} %")
+        graficar_barrido(filas)
     else:
         ags(semilla=1)
