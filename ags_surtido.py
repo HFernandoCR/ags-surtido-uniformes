@@ -1,12 +1,21 @@
+"""
+Algoritmo Genético Simple (AGS)
+Optimización del surtido de una tienda de uniformes (problema de la mochila 0-1)
+
+Uso:
+    python3 ags_surtido.py           -> ejecuta el AGS con el ejemplo de 3 prendas
+    python3 ags_surtido.py pruebas   -> ejecuta las pruebas de cada fase
+    python3 ags_surtido.py grafica   -> ejecuta el ejemplo y guarda su gráfica
+    python3 ags_surtido.py tienda    -> ejecuta el AGS con los datos del comerciante
+"""
 import random
 import sys
-import matplotlib.pyplot as plt
+
 
 # 1. DATOS DEL PROBLEMA Y PARÁMETROS
 
-# Datos del problema: un lote por bit 
+# Ejemplo de prueba: 3 prendas (el de la traza a mano)
 # (nombre, costo C, ganancia G)
-
 LOTES = [
     ("Camisa menudeo", 2700, 1800),
     ("Camisa mayoreo", 3600, 1200),
@@ -20,10 +29,40 @@ P = 7000 # presupuesto
 LAMBDA = 1 # factor de penalización
 
 # Parámetros
-N = 4          # tamaño población  
-GEN = 10       # número de generaciones  
+N = 4          # tamaño población (par)
+GEN = 10       # número de generaciones
 L = len(LOTES) # longitud del cromosoma
 PM = 1/L       # probabilidad de mutación por bit
+
+# Datos del comerciante: lotes de 10 piezas, punto medio de cada rango
+LOTES_TIENDA = [
+    ("Suéter menudeo", 1650, 1200),
+    ("Suéter mayoreo", 1650, 850),
+    ("Camisa menudeo", 500, 650),
+    ("Camisa mayoreo", 500, 350),
+    ("Falda tipo 1 menudeo", 2000, 1050),
+    ("Falda tipo 1 mayoreo", 2000, 800),
+    ("Falda tipo 2 menudeo", 1700, 900),
+    ("Falda tipo 2 mayoreo", 1700, 650),
+    ("Falda tipo 3 menudeo", 1350, 700),
+    ("Falda tipo 3 mayoreo", 1350, 250),
+]
+P_TIENDA = 4000      # presupuesto por surtido
+LAMBDA_TIENDA = 100  # por encima del valor crítico (0.571); 100 deja margen
+N_TIENDA = 20
+GEN_TIENDA = 50
+
+
+def usar_datos_tienda():
+    """Cambia los datos y parámetros globales por los del comerciante."""
+    global LOTES, P, LAMBDA, N, GEN, L, PM
+    LOTES = LOTES_TIENDA
+    P = P_TIENDA
+    LAMBDA = LAMBDA_TIENDA
+    N = N_TIENDA
+    GEN = GEN_TIENDA
+    L = len(LOTES)
+    PM = 1/L
 
 
 
@@ -97,7 +136,10 @@ def eliminar(union):
 
 
 # 3. CICLO PRINCIPAL
+
 def ags(semilla=None):
+    if N % 2 != 0:
+        sys.exit("Error: N debe ser par para formar parejas.")
     random.seed(semilla)
     poblacion = crear_poblacion()
     historial = []
@@ -149,13 +191,18 @@ def graficar(historial, archivo="convergencia.png"):
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.tight_layout()
+    if min(promedios) < 0:
+        plt.ylim(0, max(mejores) * 1.15)
+        plt.figtext(0.5, 0.01,
+                "Promedios negativos de las primeras generaciones fuera de escala (penalización por exceder el presupuesto)",
+                ha="center", fontsize=8)
     plt.savefig(archivo, dpi=150)
     print(f"\nGráfica guardada en {archivo}")
 
 
 
 # 4. PRUEBAS DE CADA FASE
-# Se ejecutan con: python3 ags_surtido.py prueba
+# Se ejecutan con: python3 ags_surtido.py pruebas
 
 def prueba_1_datos():
     print("Lotes:", L, "| pm =", round(PM,3))
@@ -250,6 +297,7 @@ def pruebas():
         print()
 
 
+
 # 5. EJECUCIÓN
 
 if __name__ == "__main__":
@@ -258,5 +306,9 @@ if __name__ == "__main__":
     elif len(sys.argv) > 1 and sys.argv[1] == "grafica":
         historial = ags(semilla=1)
         graficar(historial)
+    elif len(sys.argv) > 1 and sys.argv[1] == "tienda":
+        usar_datos_tienda()
+        historial = ags(semilla=1)
+        graficar(historial, "convergencia_tienda.png")
     else:
         ags(semilla=1)
