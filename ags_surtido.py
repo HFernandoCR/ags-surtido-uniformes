@@ -8,9 +8,11 @@ Uso:
     python3 ags_surtido.py pruebas   -> ejecuta las pruebas de cada fase
     python3 ags_surtido.py grafica   -> ejecuta el ejemplo y guarda su gráfica
     python3 ags_surtido.py tienda    -> ejecuta el AGS con los datos del comerciante
+    python3 ags_surtido.py validacion -> compara el AGS con otros métodos (datos del comerciante)
 """
 import random
 import sys
+import itertools
 
 
 # 1. DATOS DEL PROBLEMA Y PARÁMETROS
@@ -137,6 +139,18 @@ def eliminar(union):
     sorted es estable: en un empate queda primero el que iba antes (los padres)."""
     ordenada = sorted(union, key=aptitud, reverse=True)
     return ordenada[:N]
+
+def optimo_exacto():
+    """Revisa todas las combinaciones y regresa la mejor que cabe en P."""
+    mejor = None
+    mejor_ganancia = -1
+    for combinacion in itertools.product([0,1], repeat=L):
+        x = list(combinacion)
+        costo, ganancia = costo_ganancia(x)
+        if costo <= P and ganancia > mejor_ganancia:
+            mejor = x
+            mejor_ganancia = ganancia
+    return mejor, mejor_ganancia
 
 
 
@@ -315,5 +329,9 @@ if __name__ == "__main__":
         usar_datos_tienda()
         historial = ags(semilla=1)
         graficar(historial, "convergencia_tienda.png")
+    elif len(sys.argv) > 1 and sys.argv[1] == "validacion":
+        usar_datos_tienda()
+        x, g = optimo_exacto()
+        print("Óptimo exacto:", a_texto(x), "| ganancia =", g)
     else:
         ags(semilla=1)
