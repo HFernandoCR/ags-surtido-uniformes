@@ -12,6 +12,13 @@ COLOR_MEJOR = "#1f6feb"
 COLOR_PROMEDIO = "#e8590c"
 COLOR_ERROR = "#c92a2a"
 
+# Conjuntos de datos que se pueden cargar. Se leen de ags_surtido al importar,
+# antes de que configurar_modelo cambie sus variables globales.
+EJEMPLO = {"lotes": list(ags.LOTES), "P": ags.P, "lambda": ags.LAMBDA,
+           "N": ags.N, "GEN": ags.GEN, "semilla": 1}
+TIENDA = {"lotes": list(ags.LOTES_TIENDA), "P": ags.P_TIENDA, "lambda": ags.LAMBDA_TIENDA,
+          "N": ags.N_TIENDA, "GEN": ags.GEN_TIENDA, "semilla": 1}
+
 
 # 1. LECTURA Y VALIDACIÓN DE DATOS
 
@@ -162,20 +169,36 @@ class Interfaz:
         marco.pack(side="left", fill="y")
 
         ttk.Label(marco, text="Lotes de mercancía (doble clic para editar)").pack(anchor="w")
+        cuadro_lotes = ttk.Frame(marco)
+        cuadro_lotes.pack(fill="x", pady=4)
         self.tabla_lotes = ttk.Treeview(
-            marco, columns=("nombre", "costo", "ganancia"), show="headings", height=9)
+            cuadro_lotes, columns=("nombre", "costo", "ganancia"), show="headings", height=9)
         for col, texto, ancho in (("nombre", "Nombre", 150),
                                   ("costo", "Costo", 70),
                                   ("ganancia", "Ganancia", 70)):
             self.tabla_lotes.heading(col, text=texto)
-            self.tabla_lotes.column(col, width=ancho, anchor="w" if col == "nombre" else "e")
-        self.tabla_lotes.pack(fill="x", pady=4)
+            self.tabla_lotes.column(col, width=ancho, stretch=False,
+                                    anchor="w" if col == "nombre" else "e")
+        # Si la tabla no cabe en el panel, la barra horizontal evita recortar los nombres
+        barra_lotes = ttk.Scrollbar(cuadro_lotes, orient="horizontal",
+                                    command=self.tabla_lotes.xview)
+        self.tabla_lotes.configure(xscrollcommand=barra_lotes.set)
+        cuadro_lotes.columnconfigure(0, weight=1)
+        self.tabla_lotes.grid(row=0, column=0, sticky="ew")
+        barra_lotes.grid(row=1, column=0, sticky="ew")
+        # Este espaciador le pide al panel el ancho de las tres columnas (el Treeview no lo hace)
+        self.espaciador = tk.Frame(cuadro_lotes, height=0)
+        self.espaciador.grid(row=2, column=0, sticky="w")
         self.tabla_lotes.bind("<Double-1>", self.editar_celda)
 
         botones = ttk.Frame(marco)
         botones.pack(fill="x")
         ttk.Button(botones, text="Agregar lote", command=self.agregar_lote).pack(side="left")
         ttk.Button(botones, text="Quitar lote", command=self.quitar_lote).pack(side="left", padx=6)
+        ttk.Button(marco, text="Cargar ejemplo (3 prendas)",
+                   command=lambda: self.cargar_datos(EJEMPLO)).pack(fill="x", pady=(6, 0))
+        ttk.Button(marco, text="Cargar datos de la tienda",
+                   command=lambda: self.cargar_datos(TIENDA)).pack(fill="x", pady=(4, 0))
 
         self.crear_campos_parametros(marco)
 
@@ -271,12 +294,46 @@ class Interfaz:
         """Precarga los lotes definidos en ags_surtido.py."""
         for lote in ags.LOTES:
             self.tabla_lotes.insert("", "end", values=lote)
+        self.ajustar_columna_nombre()
+
+    def ajustar_columna_nombre(self):
+        """Ensancha la columna Nombre al nombre más largo de la tabla."""
+        fuente = tkfont.nametofont("TkDefaultFont")
+        textos = [self.tabla_lotes.heading("nombre", "text")]
+        textos += [str(self.tabla_lotes.item(f, "values")[0])
+                   for f in self.tabla_lotes.get_children()]
+        ancho = max(fuente.measure(t) for t in textos) + 24
+        self.tabla_lotes.column("nombre", width=ancho, minwidth=ancho)
+        total = sum(self.tabla_lotes.column(col, "width") for col in self.tabla_lotes["columns"])
+        self.espaciador.config(width=total + 4)
+
+    def cargar_datos(self, datos):
+        """Reemplaza lotes y parámetros por un conjunto de datos y limpia los resultados."""
+        self.tabla_lotes.delete(*self.tabla_lotes.get_children())
+        for lote in datos["lotes"]:
+            self.tabla_lotes.insert("", "end", values=lote)
+        self.ajustar_columna_nombre()
+        for clave, variable in self.campos.items():
+            variable.set(str(datos[clave]))
+        self.mensaje.config(text="")
+        self.limpiar_resultados()
+
+    def limpiar_resultados(self):
+        """Vacía la tabla de resultados, la gráfica y el panel del mejor surtido."""
+        self.historial = []
+        self.tabla_resultados.delete(*self.tabla_resultados.get_children())
+        self.ajustar_columnas()
+        self.dibujar_grafica()
+        self.panel_mejor.config(state="normal")
+        self.panel_mejor.delete("1.0", "end")
+        self.panel_mejor.config(state="disabled")
 
     def agregar_lote(self):
         """Agrega una fila nueva con valores por defecto."""
         fila = self.tabla_lotes.insert("", "end", values=("Lote nuevo", 0, 0))
         self.tabla_lotes.selection_set(fila)
         self.tabla_lotes.see(fila)
+        self.ajustar_columna_nombre()
 
     def quitar_lote(self):
         """Quita las filas seleccionadas (o la última si no hay selección)."""
@@ -286,6 +343,7 @@ class Interfaz:
             seleccion = filas[-1:]
         for fila in seleccion:
             self.tabla_lotes.delete(fila)
+        self.ajustar_columna_nombre()
 
     def editar_celda(self, evento):
         """Coloca un campo de texto sobre la celda para editarla."""
@@ -307,6 +365,7 @@ class Interfaz:
             valores[indice] = campo.get()
             self.tabla_lotes.item(fila, values=valores)
             campo.destroy()
+            self.ajustar_columna_nombre()
 
         campo.bind("<Return>", guardar)
         campo.bind("<FocusOut>", guardar)
@@ -352,13 +411,19 @@ class Interfaz:
         if not self.historial:
             return
         ancho, alto = c.winfo_width(), c.winfo_height()
-        izq, der, arriba, abajo = 70, 20, 15, 40
         gens = [h["gen"] for h in self.historial]
         mejores = [h["mejor"] for h in self.historial]
         promedios = [h["promedio"] for h in self.historial]
 
+        # Si algún promedio es negativo, el eje empieza en 0 y se avisa con una nota
+        fuera_de_escala = min(promedios) < 0
+        izq, der, arriba, abajo = 70, 20, 15, (56 if fuera_de_escala else 40)
+
         # Rango vertical con marcas redondas y margen
-        marcas = marcas_verticales(min(mejores + promedios), max(mejores + promedios))
+        if fuera_de_escala:
+            marcas = [m for m in marcas_verticales(0, max(max(mejores), 0)) if m >= 0]
+        else:
+            marcas = marcas_verticales(min(mejores + promedios), max(mejores + promedios))
         minimo, maximo = marcas[0], marcas[-1]
 
         def px(g):
@@ -384,17 +449,30 @@ class Interfaz:
             if g % paso == 0:
                 c.create_line(px(g), alto - abajo, px(g), alto - abajo + 4, fill="#444444")
                 c.create_text(px(g), alto - abajo + 14, text=str(g), font=("TkDefaultFont", 8))
-        c.create_text((izq + ancho - der) / 2, alto - 8, text="Generación", font=("TkDefaultFont", 9))
+        if fuera_de_escala:
+            c.create_text((izq + ancho - der) / 2, alto - 24, text="Generación", font=("TkDefaultFont", 9))
+            c.create_text((izq + ancho - der) / 2, alto - 8, fill="#666666", font=("TkDefaultFont", 8),
+                          text="Promedios negativos fuera de escala (penalización por exceder el presupuesto)")
+        else:
+            c.create_text((izq + ancho - der) / 2, alto - 8, text="Generación", font=("TkDefaultFont", 9))
 
         # Líneas de datos; con más de 50 generaciones se omiten los puntos
         con_puntos = len(gens) <= 50
         for serie, color in ((promedios, COLOR_PROMEDIO), (mejores, COLOR_MEJOR)):
-            puntos = [(px(g), py(v)) for g, v in zip(gens, serie)]
-            if len(puntos) > 1:
-                c.create_line(*[xy for p in puntos for xy in p], fill=color, width=2)
-            if con_puntos or len(puntos) == 1:
-                for x, y in puntos:
-                    c.create_oval(x - 3, y - 3, x + 3, y + 3, fill=color, outline=color)
+            # Cada tramo se recorta en el borde inferior si la serie baja del mínimo
+            for (g0, v0), (g1, v1) in zip(zip(gens, serie), zip(gens[1:], serie[1:])):
+                if v0 < minimo and v1 < minimo:
+                    continue
+                if v0 < minimo:
+                    g0, v0 = g0 + (minimo - v0) / (v1 - v0) * (g1 - g0), minimo
+                elif v1 < minimo:
+                    g1, v1 = g0 + (minimo - v0) / (v1 - v0) * (g1 - g0), minimo
+                c.create_line(px(g0), py(v0), px(g1), py(v1), fill=color, width=2, capstyle="round")
+            if con_puntos or len(gens) == 1:
+                for g, v in zip(gens, serie):
+                    if v >= minimo:
+                        c.create_oval(px(g) - 3, py(v) - 3, px(g) + 3, py(v) + 3,
+                                      fill=color, outline=color)
 
         self.dibujar_leyenda(izq + 8, arriba + 8, ancho - izq - der)
 
