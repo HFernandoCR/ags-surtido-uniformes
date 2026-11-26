@@ -1,6 +1,7 @@
 """
 Algoritmo Genético Simple (AGS)
-Optimización del surtido de una tienda de uniformes (problema de la mochila 0-1)
+Apoyo a la decisión de compra de una tienda de uniformes (problema de la mochila 0-1):
+qué lotes comprar al proveedor con el presupuesto de cada surtido.
 
 Uso:
     python3 ags_surtido.py           -> ejecuta el AGS con el ejemplo de 3 prendas
@@ -14,15 +15,19 @@ import sys
 
 # 1. DATOS DEL PROBLEMA Y PARÁMETROS
 
-# Ejemplo de prueba: 3 prendas (el de la traza a mano)
+# Toda la mercancía se compra al proveedor a precio de mayoreo (costo C).
+# Cada prenda tiene dos lotes según su canal de venta:
+#   venta al público (por pieza) o pedido de mayoreo (escuelas, revendedores).
 # (nombre, costo C, ganancia G)
+
+# Ejemplo de prueba: 3 prendas (el de la traza a mano)
 LOTES = [
-    ("Camisa menudeo", 2700, 1800),
-    ("Camisa mayoreo", 3600, 1200),
-    ("Pantalón menudeo", 2800, 1800),
-    ("Pantalón mayoreo", 2800, 1000),
-    ("Sudadera menudeo", 900, 600),
-    ("Sudadera mayoreo", 1800, 700),
+    ("Camisa (venta al público)", 2700, 1800),
+    ("Camisa (pedido de mayoreo)", 3600, 1200),
+    ("Pantalón (venta al público)", 2800, 1800),
+    ("Pantalón (pedido de mayoreo)", 2800, 1000),
+    ("Sudadera (venta al público)", 900, 600),
+    ("Sudadera (pedido de mayoreo)", 1800, 700),
 ]
 
 P = 7000 # presupuesto
@@ -36,16 +41,16 @@ PM = 1/L       # probabilidad de mutación por bit
 
 # Datos del comerciante: lotes de 10 piezas, punto medio de cada rango
 LOTES_TIENDA = [
-    ("Suéter menudeo", 1650, 1200),
-    ("Suéter mayoreo", 1650, 850),
-    ("Camisa menudeo", 500, 650),
-    ("Camisa mayoreo", 500, 350),
-    ("Falda tipo 1 menudeo", 2000, 1050),
-    ("Falda tipo 1 mayoreo", 2000, 800),
-    ("Falda tipo 2 menudeo", 1700, 900),
-    ("Falda tipo 2 mayoreo", 1700, 650),
-    ("Falda tipo 3 menudeo", 1350, 700),
-    ("Falda tipo 3 mayoreo", 1350, 250),
+    ("Suéter (venta al público)", 1650, 1200),
+    ("Suéter (pedido de mayoreo)", 1650, 850),
+    ("Camisa (venta al público)", 500, 650),
+    ("Camisa (pedido de mayoreo)", 500, 350),
+    ("Falda tipo 1 (venta al público)", 2000, 1050),
+    ("Falda tipo 1 (pedido de mayoreo)", 2000, 800),
+    ("Falda tipo 2 (venta al público)", 1700, 900),
+    ("Falda tipo 2 (pedido de mayoreo)", 1700, 650),
+    ("Falda tipo 3 (venta al público)", 1350, 700),
+    ("Falda tipo 3 (pedido de mayoreo)", 1350, 250),
 ]
 P_TIENDA = 4000      # presupuesto por surtido
 LAMBDA_TIENDA = 100  # por encima del valor crítico (0.571); 100 deja margen
